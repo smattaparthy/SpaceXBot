@@ -1,20 +1,4 @@
-import os
-from pinecone import Pinecone
-
-
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_INDEX_NAME = os.getenv(
-    "PINECONE_INDEX_NAME",
-    "spacex-rag1",
-)
-
-pc = Pinecone(
-    api_key=PINECONE_API_KEY
-)
-
-index = pc.Index(
-    PINECONE_INDEX_NAME
-)
+from app.clients import get_pinecone_index
 
 
 def upsert_chunk(
@@ -38,7 +22,7 @@ def upsert_chunk(
     if vehicle:
         metadata["vehicle"] = vehicle
 
-    index.upsert(
+    get_pinecone_index().upsert(
         vectors=[
             {
                 "id": vector_id,

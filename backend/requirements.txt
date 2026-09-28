@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+openai
+pinecone
+azure-identity
+azure-storage-blob
+python-dotenv

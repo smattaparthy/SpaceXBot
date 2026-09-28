@@ -1,9 +1,5 @@
-import os
-from openai import OpenAI
-
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+from app.clients import get_openai_client
+from app.config import OPENAI_CHAT_MODEL
 
 
 def generate_answer(question, chunks):
@@ -28,8 +24,8 @@ Question:
 {question}
 """
 
-    response = client.responses.create(
-        model="gpt-5.6",
+    response = get_openai_client().responses.create(
+        model=OPENAI_CHAT_MODEL,
         input=prompt,
     )
 
