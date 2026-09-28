@@ -1,26 +1,43 @@
-html,
-body {
-  margin: 0;
-  padding: 0;
+@import "tailwindcss";
+
+@theme inline {
+  /* Palette taken from the SpaceX logo: black field, white type, silver swoosh. */
+  --color-space: #000000;
+  --color-ink: #ffffff;
+  --color-silver: #a7a9ac;
+  --color-graphite: #1c1d1f;
+  --color-steel: #5e6166;
+  --color-alert: #f2685a;
+
+  --font-sans: var(--font-barlow);
+  --font-display: var(--font-barlow-condensed);
+
+  --animate-sweep: sweep 1.4s ease-in-out infinite;
+  --animate-reveal: reveal 300ms ease-out;
+
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
-body {
-  background: black;
-  color: white;
-}
-
-.hero {
-  min-height: 100vh;
-  background-color: black;
-}
-
-.navbar {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-  padding: 20px 30px;
-}
-
-.heroContent {
-  padding: 60px 30px;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }

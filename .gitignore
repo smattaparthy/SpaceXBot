@@ -48,3 +48,6 @@ __pycache__/
 
 # local agent worktrees
 .kilo/
+
+# browser automation screenshots
+.playwright-mcp/
