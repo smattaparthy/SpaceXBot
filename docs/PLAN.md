@@ -72,16 +72,14 @@ python -m pytest tests           # unit tests
 
 ## Known issues
 
-1. `ChatWidget.jsx` hardcodes `http://127.0.0.1:8000/chat`.
-2. The chat widget has no error handling (it stays on "Thinking..." forever), accepts empty
-   questions, and never shows the `sources` the API returns.
-3. Frontend leftovers: `NavBar.module.css` is unused, the Tailwind import was removed so the
-   classes in `layout.tsx` do nothing, the page title is "Create Next App", and the README is the starter template.
-4. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
+1. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
+2. CORS only allows `localhost:3000`, so the deployed frontend URL must be added (Phase 5).
+3. The knowledge base is 5 short synthetic demo documents, so answers are basic.
 
 Fixed: committed `.venv`/`__pycache__`, missing ingestion, the `spacex-rag1` default, the
 `test_retrieval.py` import, the hardcoded, unavailable `gpt-5.6` model, raw 500s from the API, and
-the app needing keys just to start.
+the app needing keys just to start, the hardcoded API URL, the chat widget with no error
+handling or sources, and the frontend leftovers.
 
 ## Plan of action
 
@@ -94,8 +92,9 @@ the app needing keys just to start.
 - [x] Fix the `test_retrieval.py` import
 - [x] Chat model as a setting (`OPENAI_CHAT_MODEL`, default `gpt-5.4-mini`)
 - [x] Update `.env.example`: comment out the Azure lines, add `OPENAI_CHAT_MODEL`
-- [ ] Frontend: move the API address into `NEXT_PUBLIC_API_URL` (`.env.local`)
-- [ ] Rewrite the README with setup steps
+- [x] Frontend: API address from `NEXT_PUBLIC_API_URL` (defaults to `http://127.0.0.1:8000`; set it
+      in `.env.local` or at build time, since Next.js bakes it in during `next build`)
+- [x] Rewrite the README with setup steps
 
 ### Phase 2: ingestion pipeline (key missing piece)
 
@@ -136,12 +135,17 @@ Each file is plain text, about 100 words, with a `key: value` header block (`doc
       run with no keys set
 
 ### Phase 4: chat interface
-- [ ] Convert components to TypeScript
-- [ ] Restore Tailwind; build a SpaceX-styled layout
-- [ ] Message history, loading and error states, empty-input guard
-- [ ] Show sources under each answer
+- [x] Convert components to TypeScript (`ChatWidget.tsx`, `NavBar.tsx`); removed the unused CSS module
+- [x] Restore Tailwind v4 with a small theme: true black, white, and the logo's silver; Barlow type
+- [x] Conversation laid out as a log: each question is a heading, the answer below; "New chat" resets
+- [x] Loading ("Searching the knowledge base…"), error message with "Try again", empty-input guard,
+      Enter to send and Shift+Enter for a new line, 1,000-character limit
+- [x] Sources listed under each answer. Loosely related matches are hidden (score < 0.4 or more
+      than 0.15 below the best match), so off-topic answers show none
+- [x] Real page title and description
+- [x] Checked in the browser at desktop and phone widths: suggestion click, typed question,
+      off-topic question, backend down
 - [ ] Optional: stream answers as they're written
-- [ ] Real page title and metadata
 
 ### Phase 5: deployment (optional)
 - [ ] Dockerfile for the backend
