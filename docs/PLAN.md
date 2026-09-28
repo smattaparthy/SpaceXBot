@@ -73,8 +73,7 @@ python -m pytest tests           # unit tests
 ## Known issues
 
 1. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
-2. CORS only allows `localhost:3000`, so the deployed frontend URL must be added (Phase 5).
-3. The knowledge base is 5 short synthetic demo documents, so answers are basic.
+2. The knowledge base is 5 short synthetic demo documents, so answers are basic.
 
 Fixed: committed `.venv`/`__pycache__`, missing ingestion, the `spacex-rag1` default, the
 `test_retrieval.py` import, the hardcoded, unavailable `gpt-5.6` model, raw 500s from the API, and
@@ -92,8 +91,10 @@ handling or sources, and the frontend leftovers.
 - [x] Fix the `test_retrieval.py` import
 - [x] Chat model as a setting (`OPENAI_CHAT_MODEL`, default `gpt-5.4-mini`)
 - [x] Update `.env.example`: comment out the Azure lines, add `OPENAI_CHAT_MODEL`
-- [x] Frontend: API address from `NEXT_PUBLIC_API_URL` (defaults to `http://127.0.0.1:8000`; set it
-      in `.env.local` or at build time, since Next.js bakes it in during `next build`)
+- [x] Frontend: no hardcoded API address. The browser calls `/api/*` on its own origin and
+      `next.config.ts` forwards it to `BACKEND_URL` (default `http://127.0.0.1:8000`), so the chat
+      works from phones and other machines and needs no CORS
+- [x] Dev server reachable from the local network (`allowedDevOrigins` for private IP ranges and `*.local`)
 - [x] Rewrite the README with setup steps
 
 ### Phase 2: ingestion pipeline (key missing piece)
@@ -150,7 +151,7 @@ Each file is plain text, about 100 words, with a `key: value` header block (`doc
 ### Phase 5: deployment (optional)
 - [ ] Dockerfile for the backend
 - [ ] Deploy the backend (Azure Container Apps) and the frontend (Vercel or Azure Static Web Apps)
-- [ ] Lock CORS to the deployed frontend URL
+- [ ] Set `BACKEND_URL` for the frontend build to the deployed backend's address
 
 ## Done when
 

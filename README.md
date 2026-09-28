@@ -285,8 +285,11 @@ Backend settings go in `backend/.env`:
 | `OPENAI_CHAT_MODEL` | No | `gpt-5.4-mini` | Model that writes answers (`gpt-5.4-nano` also works) |
 | `RETRIEVAL_TOP_K` | No | `3` | Number of chunks retrieved per question |
 
-The frontend reads `NEXT_PUBLIC_API_URL` (default `http://127.0.0.1:8000`) from `.env.local`.
-It's baked in when `next build` runs, so set it before building.
+The browser never calls the backend directly. It sends requests to `/api/*` on the frontend's own
+address, and Next.js forwards them to the backend (see `next.config.ts`). This lets the chat work
+from phones and other machines on your network. To point it at a backend other than
+`http://127.0.0.1:8000`, set `BACKEND_URL` in the environment or `.env.local` before running
+`npm run dev` or `npm run build`.
 
 The embedding model is fixed to `text-embedding-3-small`, because stored vectors must match it.
 Changing it means re-running ingestion into a new index.
@@ -338,7 +341,7 @@ displays the relevant ones.
 - **Least-privilege storage access**: ingestion only needs **Storage Blob Data Reader**; anonymous blob access is disabled on the storage account
 - **No service-principal secrets**: blob access deliberately ignores `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` from the environment and uses `az login` locally or managed identity when deployed
 - **Input validation**: Pydantic enforces question length; error responses never expose upstream error details
-- **CORS**: only `http://localhost:3000` and `http://127.0.0.1:3000` are allowed
+- **Same-origin requests**: the browser only talks to the frontend, which forwards `/api/*` to the backend; the backend's CORS rules additionally allow only `localhost:3000` / `127.0.0.1:3000`
 - **No user accounts**: the demo has no authentication, so don't expose the API publicly without adding it
 
 ---
@@ -350,8 +353,7 @@ Not deployed yet. This is Phase 5 in [docs/PLAN.md](docs/PLAN.md).
 ### Checklist
 - [ ] Dockerfile for the backend
 - [ ] Host the backend (e.g. Azure Container Apps) with a managed identity that has Storage Blob Data Reader
-- [ ] Host the frontend (Vercel or Azure Static Web Apps) and build it with `NEXT_PUBLIC_API_URL` pointing at the backend
-- [ ] Add the deployed frontend URL to the backend's CORS origins
+- [ ] Host the frontend (Vercel or Azure Static Web Apps) and build it with `BACKEND_URL` pointing at the backend
 - [ ] Store API keys in the platform's secret store, not in files
 - [ ] Add rate limiting before making the API public
 
@@ -371,11 +373,18 @@ Pinecone          OpenAI API       Azure Blob (ingestion)
 
 ## 🐛 Troubleshooting
 
-**"Can't reach the Mission Control API at http://127.0.0.1:8000"**
+**"Can't reach the Mission Control API. Check that the backend is running."**
 ```bash
 # The backend isn't running, or is on a different port
 cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000
-# If it runs elsewhere, set NEXT_PUBLIC_API_URL in .env.local and restart the frontend
+# If it runs elsewhere, set BACKEND_URL (e.g. BACKEND_URL=http://127.0.0.1:9000) and restart the frontend
+```
+
+**Buttons do nothing when opening the dev server from a phone or another machine**
+```bash
+# Next.js 16 blocks dev-server scripts for unknown hostnames. Private network addresses
+# (10.x, 172.x, 192.168.x) and *.local are allowed in next.config.ts (allowedDevOrigins);
+# add yours there if you use a different hostname, then restart `npm run dev`
 ```
 
 **"Could not search the knowledge base" / "Could not generate an answer" (502)**

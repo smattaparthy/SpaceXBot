@@ -3,7 +3,11 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import NavBar from "./NavBar";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+// Same-origin path, forwarded to the backend by the rewrite in next.config.ts.
+const API_URL = "/api";
+
+const UNREACHABLE_MESSAGE =
+  "Can't reach the Mission Control API. Check that the backend is running.";
 
 // Retrieval always returns the top matches, even for off-topic questions.
 // Only list sources that are both similar enough on their own and close to
@@ -57,6 +61,11 @@ function errorMessage(status: number, body: unknown): string {
   if (body && typeof body === "object" && "detail" in body && typeof body.detail === "string") {
     return body.detail;
   }
+  // A 5xx without the API's own error body means the forwarding proxy
+  // couldn't reach the backend at all.
+  if (status >= 500) {
+    return UNREACHABLE_MESSAGE;
+  }
   return `The Mission Control API returned an error (${status}). Try again.`;
 }
 
@@ -103,10 +112,7 @@ export default function ChatWidget() {
       const data = body as ChatResponse;
       update(id, { status: "done", answer: data.answer, sources: data.sources });
     } catch {
-      update(id, {
-        status: "error",
-        error: `Can't reach the Mission Control API at ${API_URL}. Check that the backend is running.`,
-      });
+      update(id, { status: "error", error: UNREACHABLE_MESSAGE });
     }
   }
 
