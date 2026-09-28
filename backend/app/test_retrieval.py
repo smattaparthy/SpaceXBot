@@ -1,4 +1,4 @@
-from services.retrieval_service import retrieve_relevant_chunks
+from app.services.retrieval_service import retrieve_relevant_chunks
 
 
 question = "What is Dragon?"

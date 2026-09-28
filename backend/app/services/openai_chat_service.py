@@ -5,6 +5,8 @@ client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
+OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.4-mini")
+
 
 def generate_answer(question, chunks):
     context = "\n\n".join(
@@ -29,7 +31,7 @@ Question:
 """
 
     response = client.responses.create(
-        model="gpt-5.6",
+        model=OPENAI_CHAT_MODEL,
         input=prompt,
     )
 
