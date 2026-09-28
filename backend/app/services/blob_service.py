@@ -11,7 +11,11 @@ ACCOUNT_URL = (
 
 
 def get_container_client():
-    credential = DefaultAzureCredential()
+    # Ignore AZURE_CLIENT_ID/SECRET from the shell (often set globally for
+    # other tools): use `az login` locally, managed identity when deployed.
+    credential = DefaultAzureCredential(
+        exclude_environment_credential=True,
+    )
 
     blob_service_client = BlobServiceClient(
         account_url=ACCOUNT_URL,
