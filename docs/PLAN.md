@@ -24,8 +24,14 @@ Ingestion (partly built):
 | Item | Where it goes |
 |---|---|
 | OpenAI API key | `backend/.env` → `OPENAI_API_KEY` |
-| Pinecone API key + index name | `backend/.env` → `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` |
-| Azure Blob access (ingestion only) | `az login`, or service principal values in `backend/.env` |
+| Chat model (optional) | `backend/.env` → `OPENAI_CHAT_MODEL` (default `gpt-5.4-mini`; `gpt-5.4-nano` also allowed). Embeddings use `text-embedding-3-small`; changing that means re-ingesting |
+| Pinecone API key + index name | `backend/.env` → `PINECONE_API_KEY`, `PINECONE_INDEX_NAME` (`spacex-rag`) |
+| Azure Blob access (ingestion only) | `az login` + "Storage Blob Data Reader" role on `spacexdocuments` |
+
+**Azure login:** `blob_service.py` deliberately ignores `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` /
+`AZURE_TENANT_ID` environment variables (`exclude_environment_credential=True`). Those are often
+exported globally, for example in `~/.zshrc` for other tools, and would override `az login`.
+Locally it uses `az login`; on Azure it uses managed identity. Don't put Azure secrets in `backend/.env`.
 | Node 20+ | frontend |
 | Python 3.10+ | backend |
 
@@ -48,21 +54,35 @@ uvicorn app.main:app --reload --port 8000
 
 `backend/app/__init__.py` loads `backend/.env` automatically before any service reads its keys.
 
+Load or refresh documents (from `backend/`):
+
+```bash
+python -m app.ingest --dry-run   # list what would be uploaded; writes nothing
+python -m app.ingest             # embed + upsert into Pinecone
+python -m pytest tests           # unit tests
+```
+
+## Current state (2026-09-28)
+
+- **Works end to end** (backend verified in-process): retrieval + `gpt-5.4-mini` answer correctly,
+  and off-topic questions return "not available in the current knowledge base".
+- Pinecone `spacex-rag` holds 5 vectors (`{file_name}-chunk-0`, one per document), loaded by
+  `python -m app.ingest`, with `category`/`vehicle` metadata.
+- Pinecone `spacex-rag1` is an unused, empty index left over from the old default name. It can be deleted.
+
 ## Known issues
 
-1. `backend/.venv` (1,342 files, built on Linux, empty) and `__pycache__/*.pyc` are committed to git.
-2. Ingestion is missing: `document_extractor.py` is empty and nothing runs blob → extract → chunk → embed → upsert.
-3. Index name mismatch: `pinecone_service.py` defaults to `spacex-rag1`, while retrieval and the
-   create script use `spacex-rag`. Setting `PINECONE_INDEX_NAME` in `.env` works around it.
-4. `ChatWidget.jsx` hardcodes `http://127.0.0.1:8000/chat`.
-5. The chat widget has no error handling (it stays on "Thinking..." forever), accepts empty
+1. `ChatWidget.jsx` hardcodes `http://127.0.0.1:8000/chat`.
+2. The chat widget has no error handling (it stays on "Thinking..." forever), accepts empty
    questions, and never shows the `sources` the API returns.
-6. The API has no error handling: a failure at OpenAI or Pinecone comes back as a raw 500.
-7. `test_retrieval.py` imports `services.` instead of `app.services.`.
-8. The chat model name `gpt-5.6` is hardcoded. It should be a setting.
-9. Frontend leftovers: `NavBar.module.css` is unused, the Tailwind import was removed so the
+3. The API has no error handling: a failure at OpenAI or Pinecone comes back as a raw 500.
+4. Frontend leftovers: `NavBar.module.css` is unused, the Tailwind import was removed so the
    classes in `layout.tsx` do nothing, the page title is "Create Next App", and the README is the starter template.
-10. Chunking uses fixed 500-word blocks with no overlap.
+5. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
+6. Services create OpenAI/Pinecone clients at import time, so the app can't even start without keys.
+
+Fixed: committed `.venv`/`__pycache__`, missing ingestion, the `spacex-rag1` default, the
+`test_retrieval.py` import, and the hardcoded, unavailable `gpt-5.6` model.
 
 ## Plan of action
 
@@ -70,24 +90,49 @@ uvicorn app.main:app --reload --port 8000
 - [x] `backend/.env.example` template for keys
 - [x] `backend/requirements.txt`
 - [x] Auto-load `backend/.env` (`backend/app/__init__.py`)
-- [ ] Remove `backend/.venv` and `__pycache__` from git and add them to `.gitignore`
-- [ ] Make the index name a single setting (fix the `spacex-rag1` default)
-- [ ] Fix the `test_retrieval.py` import
+- [x] Remove `backend/.venv` and `__pycache__` from git and add them to `.gitignore`
+- [x] Fix the `spacex-rag1` default so every module uses `spacex-rag`
+- [x] Fix the `test_retrieval.py` import
+- [x] Chat model as a setting (`OPENAI_CHAT_MODEL`, default `gpt-5.4-mini`)
+- [x] Update `.env.example`: comment out the Azure lines, add `OPENAI_CHAT_MODEL`
 - [ ] Frontend: move the API address into `NEXT_PUBLIC_API_URL` (`.env.local`)
 - [ ] Rewrite the README with setup steps
 
 ### Phase 2: ingestion pipeline (key missing piece)
-- [ ] Implement `document_extractor.py` (PDF via `pypdf`, plus `.txt` and `.md`)
-- [ ] Improve chunking: overlapping chunks
-- [ ] `backend/app/ingest.py`: blob → extract → clean → chunk → embed → upsert
-- [ ] Stable vector IDs (`{file_name}-{chunk_id}`) so re-runs update chunks instead of duplicating them
-- [ ] Local-folder option so ingestion can be tested without Azure
-- [ ] Run ingestion once and confirm the index has data
+
+Current documents in Azure (`spacexdocuments` / container `spacex`), checked 2026-09-28:
+
+| File | Category | Vehicle |
+|---|---|---|
+| `company_overview.txt` | company | — |
+| `dragon_overview.txt` | vehicle | Dragon |
+| `falcon9_overview.txt` | vehicle | Falcon 9 |
+| `launch_operations.txt` | operations | — |
+| `starship_overview.txt` | vehicle | Starship |
+| `spacex_rag_demo_docs.zip` | original upload; skip it (or delete it) | |
+
+Each file is plain text, about 100 words, with a `key: value` header block (`document_id`, `title`,
+`category`, `vehicle`, ...) followed by a blank line and the body. These are synthetic demo documents.
+
+- [x] Implement `document_extractor.py`: decode `.txt`/`.md` and parse the header block
+      (PDF support via `pypdf` can wait until PDFs are uploaded)
+- [x] Pass header `category` and `vehicle` through to `pinecone_service.upsert_chunk`
+- [x] Title stays in the chunk text (the whole header is embedded with the body)
+- [x] `backend/app/ingest.py` with `--dry-run`: list blobs → skip non-text (.zip) → extract → clean → chunk → embed → upsert
+- [x] Stable vector IDs `{file_name}-chunk-{n}`, matching the existing vectors, so re-runs overwrite them
+- [x] Dry run verified: 5 docs, zip skipped, generated text identical to the stored vectors
+- [x] Try it out: "What is Dragon?" and "How does Falcon 9 reuse its first stage?" answer
+      correctly; "Who won the 2022 World Cup?" returns "not available"
+- [x] Run `python -m app.ingest` for real: 5 vectors, now with `category`/`vehicle` metadata
+- [ ] Optional: overlapping chunks (only matters once bigger docs are uploaded)
+- [ ] Optional: local-folder source so ingestion can be tested without Azure
 
 ### Phase 3: make the backend reliable
 - [ ] Central config module (keys, index name, chat model, top_k)
+- [ ] Create OpenAI/Pinecone clients lazily so the app and tests start without keys
 - [ ] Reject empty questions; return clear errors when OpenAI or Pinecone fails
-- [ ] Replace the print scripts with pytest tests that fake the OpenAI and Pinecone calls (in `backend/tests/`)
+- [x] `backend/tests/` set up with pytest (document extractor: 6 tests)
+- [ ] Replace the print scripts with pytest tests that fake the OpenAI and Pinecone calls
 
 ### Phase 4: chat interface
 - [ ] Convert components to TypeScript
