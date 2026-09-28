@@ -1,15 +1,10 @@
-import os
-from openai import OpenAI
-
-
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+from app.clients import get_openai_client
+from app.config import OPENAI_EMBEDDING_MODEL
 
 
 def create_embedding(text):
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
+    response = get_openai_client().embeddings.create(
+        model=OPENAI_EMBEDDING_MODEL,
         input=text,
     )
 

@@ -75,14 +75,13 @@ python -m pytest tests           # unit tests
 1. `ChatWidget.jsx` hardcodes `http://127.0.0.1:8000/chat`.
 2. The chat widget has no error handling (it stays on "Thinking..." forever), accepts empty
    questions, and never shows the `sources` the API returns.
-3. The API has no error handling: a failure at OpenAI or Pinecone comes back as a raw 500.
-4. Frontend leftovers: `NavBar.module.css` is unused, the Tailwind import was removed so the
+3. Frontend leftovers: `NavBar.module.css` is unused, the Tailwind import was removed so the
    classes in `layout.tsx` do nothing, the page title is "Create Next App", and the README is the starter template.
-5. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
-6. Services create OpenAI/Pinecone clients at import time, so the app can't even start without keys.
+4. Chunking uses fixed 500-word blocks with no overlap (fine for the current ~100-word docs).
 
 Fixed: committed `.venv`/`__pycache__`, missing ingestion, the `spacex-rag1` default, the
-`test_retrieval.py` import, and the hardcoded, unavailable `gpt-5.6` model.
+`test_retrieval.py` import, the hardcoded, unavailable `gpt-5.6` model, raw 500s from the API, and
+the app needing keys just to start.
 
 ## Plan of action
 
@@ -128,11 +127,13 @@ Each file is plain text, about 100 words, with a `key: value` header block (`doc
 - [ ] Optional: local-folder source so ingestion can be tested without Azure
 
 ### Phase 3: make the backend reliable
-- [ ] Central config module (keys, index name, chat model, top_k)
-- [ ] Create OpenAI/Pinecone clients lazily so the app and tests start without keys
-- [ ] Reject empty questions; return clear errors when OpenAI or Pinecone fails
-- [x] `backend/tests/` set up with pytest (document extractor: 6 tests)
-- [ ] Replace the print scripts with pytest tests that fake the OpenAI and Pinecone calls
+- [x] Central config module `app/config.py` (chat and embedding model, index name, `RETRIEVAL_TOP_K`)
+- [x] `app/clients.py` creates OpenAI/Pinecone clients on first use, so the app and tests start without keys
+- [x] Reject blank questions or ones over 1,000 characters (422); OpenAI or Pinecone failures return 502
+      with a readable message and are logged server-side
+- [x] Typed `/chat` response (`question`, `answer`, `sources[]`)
+- [x] Replaced the print scripts with pytest: 15 tests (API with faked services + document extractor),
+      run with no keys set
 
 ### Phase 4: chat interface
 - [ ] Convert components to TypeScript
